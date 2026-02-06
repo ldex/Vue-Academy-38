@@ -1,127 +1,76 @@
 <template>
     <div>
         <h2>{{ title }}</h2>
-        <fieldset class="filters">
-            Sort by:
-            <button @click="sort('name')">Name</button>
-            <button @click="sort('price')">Price</button>
-            <button @click="sort('modifiedDate')">Date</button>
-            <span> Filter by name: <input v-model="filterName" /></span>
-        </fieldset>
-        <ul class="products">
-            <li v-for="product in sortedFilteredPaginatedProducts" v-bind:key="product.id"
-                :class='{ discontinued: product.discontinued, selected: product.id === selectedProduct?.id }'
-                @click="onSelect(product)"
-                :title="JSON.stringify(product)">
-                <span class=" name">{{ product.name }}</span>
-                <span class="description">{{ product.description }}</span>
-                <span class="price">{{ product.price }}</span>
-            </li>
-        </ul>
 
-        <button @click="prevPage" :disabled="pageNumber === 1">
-            &lt; Previous
-        </button>
-        Page {{ pageNumber }}
-        <button @click="nextPage" :disabled="pageNumber >= pageCount">
-            Next &gt;
-        </button>
+        <div>
+          <router-link to="/product/insert">Create new product...</router-link>
+        </div>
 
+        <ag-grid-vue
+            :rowData="props.products"
+            :columnDefs="columnDefs"
+            :pagination="true"
+            :paginationPageSize="props.pageSize"
+            :paginationPageSizeSelector="[props.pageSize, 10, 50]"
+            style="height: 310px"
+            @row-clicked="onRowClicked"
+            />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, type ComputedRef, computed, watch } from 'vue'
-import type { Product } from '@/types';
+import useList from "@/composables/items-list";
 import { useRouter } from 'vue-router'
+import type { Product } from '@/types';
+
+import { AgGridVue } from "ag-grid-vue3";
+import type { ColDef, RowClickedEvent } from 'ag-grid-community';
+import { ref } from 'vue';
+
+// Define a case-insensitive comparator as the default string comparator is case-sensitive
+const caseInsensitiveComparator = (valueA: string, valueB: string) => {
+  if (valueA === valueB) return 0;
+  if (valueA === null || valueA === undefined) return -1;
+  if (valueB === null || valueB === undefined) return 1;
+
+  // localeCompare is the most robust way to compare strings
+  return valueA.toLowerCase().localeCompare(valueB.toLowerCase());
+};
+
+const columnDefs = ref<ColDef<Product>[]>([
+  {
+    field: "name",
+    filter: true,
+    comparator: caseInsensitiveComparator
+  },
+  { field: "description" },
+  { field: "price", valueFormatter: (p) => "$" + p.value.toLocaleString() }
+]);
+
+function onRowClicked(event: RowClickedEvent<Product>): void {
+  if (event.data) {
+    onSelect(event.data);
+  }
+}
 
 const router = useRouter()
 
-function onSelect(product: Product): void {
-      router.push({ name: "product", params: { id: product.id } });
-}
-
 interface Props {
-    products: Product[],
-    pageSize?: number
+  products: Product[],
+  pageSize?: number
+  title?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    pageSize: 5
+  pageSize: 5,
+  title: 'Products'
 });
 
-const selectedProduct = ref<Product>();
-const filterName = ref<string>('');
-const sortName = ref<string>('modifiedDate');
-const sortDir = ref<string>('desc');
-const pageNumber = ref<number>(1);
-let title: string = 'Products';
-
-watch([filterName, sortName, sortDir], () => {
-    pageNumber.value = 1;
-})
-
-function sort(s: string): void {
-    //if s == current sort, reverse order
-    if (s === sortName.value) {
-        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
-    }
-    sortName.value = s;
+function onSelect(product: Product): void {
+  router.push({ name: "product", params: { id: product.id } });
 }
 
-function nextPage(): void {
-    pageNumber.value++;
-    selectedProduct.value = undefined;
-}
-
-function prevPage(): void {
-    pageNumber.value--;
-    selectedProduct.value = undefined;
-}
-
-const filteredProducts: ComputedRef<Product[]> = computed(() => {
-    let filter: RegExp = new RegExp(filterName.value, 'i')
-    return props.products.filter(el => el.name?.match(filter))
-})
-
-const sortedFilteredProducts: ComputedRef<Product[]> = computed(() => {
-    const modifier = sortDir.value === 'desc' ? -1 : 1;
-    const key = sortName.value as keyof Product; // By using keyof Product, TypeScript knows that sortName.value is guaranteed to be a valid key like id, name, price, modifiedDate or discontinued...
-
-    return [...filteredProducts.value].sort((a, b) => {
-        const valA = a[key];
-        const valB = b[key];
-
-        // 1. Handle "name" specifically for proper string sorting
-        if (key === 'name') {
-            return a.name.localeCompare(b.name) * modifier;
-        }
-
-        // 2. Handle potential undefined/null values (Optional fields)
-        // This moves undefined items to the bottom regardless of sort order
-        if (valA === undefined) return 1;
-        if (valB === undefined) return -1;
-
-        // 3. Generic Comparison for numbers, booleans, or dates
-        if (valA < valB) return -1 * modifier;
-        if (valA > valB) return 1 * modifier;
-
-        return 0;
-    });
-});
-
-const sortedFilteredPaginatedProducts: ComputedRef<Product[]> = computed(() => {
-    const start: number = (pageNumber.value - 1) * props.pageSize
-    const end: number = start + props.pageSize;
-
-    return sortedFilteredProducts.value.slice(start, end);
-})
-
-const pageCount: ComputedRef<number> = computed(() => {
-    const l: number = filteredProducts.value.length
-    const s: number = props.pageSize;
-    return Math.floor(l / s);
-})
+const { sort, nextPage, prevPage, filterName, pageNumber, pageCount, sortedFilteredPaginatedItems: sortedFilteredPaginatedProducts } = useList<Product>(props.products, props.pageSize, "modifiedDate", "desc")
 </script>
 
 <style scoped>

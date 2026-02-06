@@ -33,4 +33,41 @@ export default {
       throw error;
     }
   },
+
+  async insertProduct(product: Product): Promise<Product> {
+    product.modifiedDate = new Date();
+    const url = `${baseURL}/${resourceName}`;
+    const options: RequestInit = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(product),
+    };
+
+    try {
+      const response = await fetch(url, options);
+      return await response.json();
+    } catch (error) {
+      console.error("API Error while creating new product: ", error);
+      throw error;
+    }
+  },
+
+  async deleteProduct(product: Product): Promise<void> {
+    const url = `${baseURL}/${resourceName}/${product.id}`;
+    const options: RequestInit = {
+      method: "DELETE",
+    };
+
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("API Error while deleting product: ", error);
+      throw error;
+    }
+  },
 };

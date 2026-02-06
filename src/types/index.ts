@@ -9,7 +9,7 @@ export interface Product {
   modifiedDate?: Date;
 }
 
-export interface User {
+export interface User2 {
   username: string;
   token: string | null;
 }
